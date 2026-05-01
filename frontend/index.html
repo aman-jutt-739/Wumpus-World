@@ -1,98 +1,306 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<title>Wumpus KB Agent</title>
+  <meta charset="UTF-8" />
+  <title>Wumpus KB Agent</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@600&display=swap');
 
-<style>
-body{
-    font-family:Arial;
-    background:#1e1e2f;
-    color:white;
-    text-align:center;
-}
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-.grid{
-    display:grid;
-    margin:auto;
-    gap:5px;
-}
+    body {
+      font-family: 'Share Tech Mono', monospace;
+      background: #0d0d1a;
+      color: #c9d1d9;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 30px 16px;
+    }
 
-.cell{
-    width:60px;height:60px;
-    border-radius:8px;
-}
+    h2 {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1.6rem;
+      color: #f0c040;
+      letter-spacing: 3px;
+      margin-bottom: 22px;
+      text-shadow: 0 0 12px #f0c04088;
+    }
 
-.safe{background:green;}
-.unknown{background:#555;}
-.danger{background:red;}
-.agent{background:gold;}
-</style>
+    .controls {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    label { font-size: 0.85rem; color: #8b949e; }
+
+    input[type=number] {
+      width: 64px;
+      padding: 6px 10px;
+      border-radius: 6px;
+      border: 1px solid #30363d;
+      background: #161b22;
+      color: #e6edf3;
+      font-family: inherit;
+      font-size: 1rem;
+      text-align: center;
+    }
+
+    button {
+      padding: 8px 20px;
+      border-radius: 6px;
+      border: none;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.78rem;
+      letter-spacing: 1px;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+    }
+    button:active { transform: scale(0.96); }
+
+    #btnStart { background: #238636; color: #fff; }
+    #btnStart:hover { background: #2ea043; }
+    #btnStep  { background: #1f6feb; color: #fff; }
+    #btnStep:hover  { background: #388bfd; }
+    #btnAuto  { background: #6e40c9; color: #fff; }
+    #btnAuto:hover  { background: #8957e5; }
+
+    #grid {
+      display: grid;
+      gap: 6px;
+      margin: 0 auto 24px;
+    }
+
+    .cell {
+      width: 68px;
+      height: 68px;
+      border-radius: 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.4rem;
+      position: relative;
+      border: 2px solid transparent;
+      transition: background 0.3s, border-color 0.3s;
+    }
+    .cell .coord {
+      position: absolute;
+      bottom: 4px;
+      right: 6px;
+      font-size: 0.55rem;
+      opacity: 0.5;
+    }
+
+    /* States */
+    .unknown  { background: #21262d; border-color: #30363d; }
+    .visited  { background: #0f4c2a; border-color: #238636; }
+    .safe-inf { background: #0d3b50; border-color: #1f6feb; } 
+    .danger   { background: #3d1a1a; border-color: #da3633; }
+    .agent    { background: #7a5c00; border-color: #f0c040;
+                box-shadow: 0 0 14px #f0c04066; }
+
+    /* Legend */
+    .legend {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-bottom: 20px;
+      font-size: 0.75rem;
+    }
+    .legend-item { display: flex; align-items: center; gap: 6px; }
+    .legend-box  { width: 14px; height: 14px; border-radius: 3px; border: 1px solid #555; }
+
+    /* Status bar */
+    #status {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 12px 24px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px 24px;
+      font-size: 0.82rem;
+      min-width: 320px;
+      text-align: center;
+    }
+    #status .label { color: #8b949e; font-size: 0.7rem; }
+    #status .value { color: #e6edf3; font-size: 1rem; }
+
+    #msg {
+      margin-top: 14px;
+      font-size: 0.9rem;
+      color: #f85149;
+      min-height: 22px;
+      font-family: 'Orbitron', sans-serif;
+      letter-spacing: 1px;
+    }
+  </style>
 </head>
-
 <body>
 
-<h2>Wumpus World</h2>
+<h2>WUMPUS WORLD</h2>
 
-<input id="n" type="number" value="4">
-<button onclick="start()">Start</button>
-<button onclick="step()">Step</button>
+<div class="controls">
+  <label for="n">Grid Size</label>
+  <input id="n" type="number" value="4" min="3" max="8" />
+  <button id="btnStart" onclick="start()">INIT</button>
+  <button id="btnStep"  onclick="stepOnce()">STEP</button>
+  <button id="btnAuto"  onclick="toggleAuto()">AUTO</button>
+</div>
 
-<div id="grid" class="grid"></div>
+<div class="legend">
+  <div class="legend-item"><div class="legend-box" style="background:#7a5c00;border-color:#f0c040"></div> Agent</div>
+  <div class="legend-item"><div class="legend-box" style="background:#0f4c2a;border-color:#238636"></div> Visited</div>
+  <div class="legend-item"><div class="legend-box" style="background:#0d3b50;border-color:#1f6feb"></div> Inferred Safe</div>
+  <div class="legend-item"><div class="legend-box" style="background:#3d1a1a;border-color:#da3633"></div> Danger</div>
+  <div class="legend-item"><div class="legend-box" style="background:#21262d;border-color:#30363d"></div> Unknown</div>
+</div>
 
-<p>Breeze: <span id="b"></span> | Stench: <span id="s"></span> | Steps: <span id="st"></span></p>
+<div id="grid"></div>
+
+<div id="status">
+  <div><div class="label">BREEZE</div><div class="value" id="b">—</div></div>
+  <div><div class="label">STENCH</div><div class="value" id="s">—</div></div>
+  <div><div class="label">STEPS</div><div class="value" id="st">0</div></div>
+</div>
+
+<div id="msg"></div>
 
 <script>
-let n=4,grid=[],agent=[0,0];
+  let n = 4;
+  let agentPos = [0, 0];
+  let visitedGrid = [];
+  let safeSet = [];
+  let dangerSet = [];
+  let autoTimer = null;
+  let isStuck = false;
 
-function start(){
-fetch("http://127.0.0.1:5000/init",{
-method:"POST",
-headers:{"Content-Type":"application/json"},
-body:JSON.stringify({size:+document.getElementById("n").value})
-})
-.then(r=>r.json()).then(d=>{
-agent=d.pos;
-draw();
-});
-}
+  function start() {
+    n = parseInt(document.getElementById("n").value) || 4;
+    isStuck = false;
+    document.getElementById("msg").textContent = "";
+    stopAuto();
 
-function step(){
-fetch("http://127.0.0.1:5000/step")
-.then(r=>r.json()).then(d=>{
-agent=d.pos;
-grid=d.visited;
+    fetch("http://127.0.0.1:5000/init", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ size: n })
+    })
+    .then(r => r.json())
+    .then(d => {
+      agentPos = d.pos;
+      visitedGrid = Array.from({ length: n }, () => Array(n).fill(false));
+      safeSet = [];
+      dangerSet = [];
+      document.getElementById("b").textContent = "—";
+      document.getElementById("s").textContent = "—";
+      document.getElementById("st").textContent = "0";
+      draw();
+    })
+    .catch(() => document.getElementById("msg").textContent = "Cannot connect to Flask server.");
+  }
 
-document.getElementById("b").innerText=d.breeze;
-document.getElementById("s").innerText=d.stench;
-document.getElementById("st").innerText=d.steps;
+  function stepOnce() {
+    if (isStuck) return;
+    fetch("http://127.0.0.1:5000/step")
+      .then(r => r.json())
+      .then(d => {
+        agentPos   = d.pos;
+        visitedGrid = d.visited;
+        safeSet    = d.safe   || [];
+        dangerSet  = d.danger || [];
+        document.getElementById("b").textContent  = d.breeze  ? "YES 💨" : "No";
+        document.getElementById("s").textContent  = d.stench  ? "YES 🦨" : "No";
+        document.getElementById("st").textContent = d.steps;
+        if (d.stuck) {
+          isStuck = true;
+          document.getElementById("msg").textContent = "⛔ AGENT STUCK — No safe moves found.";
+          stopAuto();
+        }
+        draw();
+      })
+      .catch(() => {
+        document.getElementById("msg").textContent = "Cannot connect to Flask server.";
+        stopAuto();
+      });
+  }
 
-draw();
-});
-}
+  function toggleAuto() {
+    if (autoTimer) {
+      stopAuto();
+    } else {
+      document.getElementById("btnAuto").textContent = "STOP";
+      autoTimer = setInterval(() => {
+        if (isStuck) { stopAuto(); return; }
+        stepOnce();
+      }, 600);
+    }
+  }
 
-function draw(){
-let g=document.getElementById("grid");
-g.style.gridTemplateColumns=`repeat(${n},60px)`;
-g.innerHTML="";
+  function stopAuto() {
+    clearInterval(autoTimer);
+    autoTimer = null;
+    document.getElementById("btnAuto").textContent = "AUTO";
+  }
 
-for(let i=0;i<n;i++){
-for(let j=0;j<n;j++){
+  function isSafe(r, c) {
+    return safeSet.some(p => p[0] === r && p[1] === c);
+  }
+  function isDanger(r, c) {
+    return dangerSet.some(p => p[0] === r && p[1] === c);
+  }
 
-let c=document.createElement("div");
-c.classList.add("cell");
+  function draw() {
+    const g = document.getElementById("grid");
+    g.style.gridTemplateColumns = `repeat(${n}, 68px)`;
+    g.innerHTML = "";
 
-if(agent[0]==i&&agent[1]==j)
-c.classList.add("agent");
-else if(grid[i]?.[j])
-c.classList.add("safe");
-else
-c.classList.add("unknown");
+    for (let row = 0; row < n; row++) {
+      for (let col = 0; col < n; col++) {
+        const cell = document.createElement("div");
+        cell.classList.add("cell");
 
-g.appendChild(c);
-}
-}
-}
+        const isAgent   = agentPos[0] === row && agentPos[1] === col;
+        const isVisited = visitedGrid[row]?.[col];
+        const safeMark  = isSafe(row, col);
+        const dangMark  = isDanger(row, col);
+
+        if (isAgent) {
+          cell.classList.add("agent");
+          cell.textContent = "🤖";
+        } else if (isVisited) {
+          cell.classList.add("visited");
+          cell.textContent = "✓";
+        } else if (dangMark) {
+          cell.classList.add("danger");
+          cell.textContent = "☠";
+        } else if (safeMark) {
+          cell.classList.add("safe-inf");
+          cell.textContent = "?";
+        } else {
+          cell.classList.add("unknown");
+        }
+
+        const coord = document.createElement("span");
+        coord.classList.add("coord");
+        coord.textContent = `${row},${col}`;
+        cell.appendChild(coord);
+
+        g.appendChild(cell);
+      }
+    }
+  }
+
+  // Draw initial empty grid on load
+  n = parseInt(document.getElementById("n").value) || 4;
+  draw();
 </script>
-
 </body>
 </html>

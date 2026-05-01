@@ -8,165 +8,186 @@ CORS(app)
 GRID = 4
 world = []
 visited = []
-agent = (0,0)
-
+agent = (0, 0)
 KB = []
 steps = 0
-
 safe = set()
 danger = set()
 
+
 def init_world(n):
     global GRID, world, visited, agent, KB, steps, safe, danger
-
     GRID = n
     world = [["" for _ in range(n)] for _ in range(n)]
-    visited = [[False]*n for _ in range(n)]
+    visited = [[False] * n for _ in range(n)]
     KB = []
     steps = 0
-    safe = {(0,0)}
+    safe = {(0, 0)}
     danger = set()
 
-    # Wumpus
-    wx, wy = random.randint(0,n-1), random.randint(0,n-1)
-    world[wx][wy] = "W"
+    while True:
+        wx, wy = random.randint(0, n - 1), random.randint(0, n - 1)
+        if (wx, wy) != (0, 0):
+            world[wx][wy] = "W"
+            break
 
-    # Pits
     for _ in range(n):
         while True:
-            x,y = random.randint(0,n-1), random.randint(0,n-1)
-            if world[x][y]=="" and (x,y)!=(0,0):
-                world[x][y]="P"
+            x, y = random.randint(0, n - 1), random.randint(0, n - 1)
+            if world[x][y] == "" and (x, y) != (0, 0):
+                world[x][y] = "P"
                 break
 
-    agent = (0,0)
-
-def nbr(x,y):
-    d=[(1,0),(-1,0),(0,1),(0,-1)]
-    return [(x+i,y+j) for i,j in d if 0<=x+i<GRID and 0<=y+j<GRID]
+    agent = (0, 0)
 
 
-def L(sym,x,y,neg=False):
+def nbr(x, y):
+    dirs = [(1, 0), (-1, 0), (0, 1), (0, -1)]
+    return [(x + dx, y + dy) for dx, dy in dirs if 0 <= x + dx < GRID and 0 <= y + dy < GRID]
+
+
+def L(sym, x, y, neg=False):
     return ("~" if neg else "") + f"{sym}_{x}_{y}"
 
-def percept(x,y):
-    b=s=False
-    for nx,ny in nbr(x,y):
-        if world[nx][ny]=="P": b=True
-        if world[nx][ny]=="W": s=True
-    return b,s
 
-def tell(x,y,b,s):
-    global KB
+def percept(x, y):
+    b = s = False
+    for nx, ny in nbr(x, y):
+        if world[nx][ny] == "P":
+            b = True
+        if world[nx][ny] == "W":
+            s = True
+    return b, s
 
-    nbs = nbr(x,y)
 
-    pits = {L("P",nx,ny) for nx,ny in nbs}
-    wump = {L("W",nx,ny) for nx,ny in nbs}
+def tell(x, y, b, s):
+    nbs = nbr(x, y)
+    pit_lits = {L("P", nx, ny) for nx, ny in nbs}
+    wmp_lits = {L("W", nx, ny) for nx, ny in nbs}
 
-    # Breeze rule
     if b:
-        KB.append(pits)
+        KB.append(pit_lits)
     else:
-        for n in nbs:
-            KB.append({L("P",n[0],n[1],True)})
+        for nx, ny in nbs:
+            KB.append({L("P", nx, ny, True)})
 
-    # Stench rule
     if s:
-        KB.append(wump)
+        KB.append(wmp_lits)
     else:
-        for n in nbs:
-            KB.append({L("W",n[0],n[1],True)})
-
-def neg(l): return l[1:] if l.startswith("~") else "~"+l
+        for nx, ny in nbs:
+            KB.append({L("W", nx, ny, True)})
 
 
-def resolve(ci,cj):
-    out=[]
+def neg_lit(lit):
+    return lit[1:] if lit.startswith("~") else "~" + lit
+
+
+def resolve(ci, cj):
+    resolvents = []
     for a in ci:
-        for b in cj:
-            if a==neg(b):
-                out.append((ci-{a})|(cj-{b}))
-    return out
+        if neg_lit(a) in cj:
+            resolvent = (ci - {a}) | (cj - {neg_lit(a)})
+            resolvents.append(resolvent)
+    return resolvents
 
 
-def resolution(kb,query):
+def resolution(kb, query):
+    """Return True if KB entails query (all literals in query must hold)."""
     global steps
-
-    clauses = kb[:]
-
+    clauses = [frozenset(c) for c in kb]
+    # Negate each query literal and add as unit clauses
     for q in query:
-        clauses.append({neg(q)})
+        clauses.append(frozenset({neg_lit(q)}))
 
-    new=set()
+    seen = set(clauses)
 
     while True:
-        n=len(clauses)
-
+        new_clauses = set()
+        clause_list = list(clauses)
+        n = len(clause_list)
         for i in range(n):
-            for j in range(i+1,n):
-                for r in resolve(clauses[i],clauses[j]):
+            for j in range(i + 1, n):
+                for r in resolve(clause_list[i], clause_list[j]):
                     steps += 1
-                    if len(r)==0:
-                        return True
-                    new.add(frozenset(r))
+                    fr = frozenset(r)
+                    if len(fr) == 0:
+                        return True  
+                    new_clauses.add(fr)
 
-        old=set(frozenset(c) for c in clauses)
+        if new_clauses.issubset(seen):
+            return False  
+        for c in new_clauses:
+            if c not in seen:
+                seen.add(c)
+                clauses.append(c)
 
-        if new.issubset(old):
-            return False
 
-        for c in new:
-            if set(c) not in clauses:
-                clauses.append(set(c))
+def ask_safe(x, y):
+    """Return True only if KB proves both no-pit AND no-wumpus at (x,y)."""
+    no_pit = resolution(KB, [L("P", x, y, True)])
+    no_wumpus = resolution(KB, [L("W", x, y, True)])
+    return no_pit and no_wumpus
 
-def ask_safe(x,y):
-    return resolution(KB,[L("P",x,y,True)]) and resolution(KB,[L("W",x,y,True)])
 
 def move():
-    x,y=agent
-
-    for nx,ny in nbr(x,y):
+    global safe, danger
+    x, y = agent
+    candidates = []
+    for nx, ny in nbr(x, y):
         if not visited[nx][ny]:
-            if ask_safe(nx,ny):
-                return (nx,ny)
+            if ask_safe(nx, ny):
+                safe.add((nx, ny))
+                candidates.append((nx, ny))
+            else:
+                danger.add((nx, ny))
+
+    if candidates:
+        return candidates[0]
     return None
+
 
 @app.route("/")
 def home():
     return "Wumpus AI Ready"
 
 
-@app.route("/init",methods=["POST"])
+@app.route("/init", methods=["POST"])
 def init():
-    size=request.json["size"]
+    size = request.json.get("size", 4)
     init_world(size)
-    return jsonify({"pos":agent})
+    return jsonify({"pos": list(agent)})
 
 
 @app.route("/step")
 def step_api():
     global agent
+    x, y = agent
 
-    x,y=agent
-    visited[x][y]=True
+    if not visited[x][y]:
+        visited[x][y] = True
+        b, s = percept(x, y)
+        tell(x, y, b, s)
+    else:
+        b, s = percept(x, y)
 
-    b,s=percept(x,y)
-    tell(x,y,b,s)
-
-    m=move()
-    if m: agent=m
+    m = move()
+    stuck = False
+    if m:
+        agent = m
+    else:
+        stuck = True
 
     return jsonify({
-        "pos":agent,
-        "breeze":b,
-        "stench":s,
-        "visited":visited,
-        "steps":steps,
-        "safe":list(safe),
-        "danger":list(danger)
+        "pos": list(agent),
+        "breeze": b,
+        "stench": s,
+        "visited": visited,
+        "steps": steps,
+        "safe": [list(c) for c in safe],
+        "danger": [list(c) for c in danger],
+        "stuck": stuck
     })
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=10000)
