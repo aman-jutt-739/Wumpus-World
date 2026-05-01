@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Wumpus KB Agent</title>
+
+<style>
+body{
+    font-family:Arial;
+    background:#1e1e2f;
+    color:white;
+    text-align:center;
+}
+
+.grid{
+    display:grid;
+    margin:auto;
+    gap:5px;
+}
+
+.cell{
+    width:60px;height:60px;
+    border-radius:8px;
+}
+
+.safe{background:green;}
+.unknown{background:#555;}
+.danger{background:red;}
+.agent{background:gold;}
+</style>
+</head>
+
+<body>
+
+<h2>Wumpus World</h2>
+
+<input id="n" type="number" value="4">
+<button onclick="start()">Start</button>
+<button onclick="step()">Step</button>
+
+<div id="grid" class="grid"></div>
+
+<p>Breeze: <span id="b"></span> | Stench: <span id="s"></span> | Steps: <span id="st"></span></p>
+
+<script>
+let n=4,grid=[],agent=[0,0];
+
+function start(){
+fetch("http://127.0.0.1:5000/init",{
+method:"POST",
+headers:{"Content-Type":"application/json"},
+body:JSON.stringify({size:+document.getElementById("n").value})
+})
+.then(r=>r.json()).then(d=>{
+agent=d.pos;
+draw();
+});
+}
+
+function step(){
+fetch("http://127.0.0.1:5000/step")
+.then(r=>r.json()).then(d=>{
+agent=d.pos;
+grid=d.visited;
+
+document.getElementById("b").innerText=d.breeze;
+document.getElementById("s").innerText=d.stench;
+document.getElementById("st").innerText=d.steps;
+
+draw();
+});
+}
+
+function draw(){
+let g=document.getElementById("grid");
+g.style.gridTemplateColumns=`repeat(${n},60px)`;
+g.innerHTML="";
+
+for(let i=0;i<n;i++){
+for(let j=0;j<n;j++){
+
+let c=document.createElement("div");
+c.classList.add("cell");
+
+if(agent[0]==i&&agent[1]==j)
+c.classList.add("agent");
+else if(grid[i]?.[j])
+c.classList.add("safe");
+else
+c.classList.add("unknown");
+
+g.appendChild(c);
+}
+}
+}
+</script>
+
+</body>
+</html>
